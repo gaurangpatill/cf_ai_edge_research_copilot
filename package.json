@@ -1,0 +1,21 @@
+{
+  "name": "cf_ai_edge-research-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:worker": "wrangler dev src/worker.ts",
+    "dev:pages": "wrangler pages dev pages",
+    "deploy:worker": "wrangler deploy src/worker.ts",
+    "deploy:pages": "wrangler pages deploy pages",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@cloudflare/agents": "^0.0.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}
