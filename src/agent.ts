@@ -22,11 +22,13 @@ interface SocketEnvelope {
 }
 
 export class EdgeResearchAgent extends Agent<Env> {
+  private readonly doState: DurableObjectState;
   private sessions = new Map<string, Set<WebSocket>>();
   private socketUsers = new Map<WebSocket, string>();
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
+    this.doState = state;
     initSchema(state.storage.sql);
   }
 
@@ -46,6 +48,12 @@ export class EdgeResearchAgent extends Agent<Env> {
       const body = (await request.json()) as { userId: string; title: string; content: string };
       await this.addDocument(body.userId, body.title, body.content);
       return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
+    }
+
+    if (url.pathname === "/getChunksByIds" && request.method === "POST") {
+      const body = (await request.json()) as { userId: string; chunkIds: string[] };
+      const chunks = await this.getChunksByIds(body.userId, body.chunkIds);
+      return new Response(JSON.stringify({ chunks }), { headers: { "content-type": "application/json" } });
     }
 
     if (url.pathname === "/listMemories" && request.method === "GET") {
@@ -118,7 +126,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   async addDocument(userId: string, title: string, content: string): Promise<void> {
     this.ensureUser(userId);
     const docId = crypto.randomUUID();
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
 
     sql
       .prepare("INSERT INTO docs (id, user_id, title, content) VALUES (?, ?, ?, ?)")
@@ -154,7 +162,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async listMemories(userId: string): Promise<{ docs: unknown[]; summaries: unknown[] }> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     const docs = sql
       .prepare("SELECT id, title, created_at FROM docs WHERE user_id = ? ORDER BY created_at DESC")
       .bind(userId)
@@ -166,6 +174,88 @@ export class EdgeResearchAgent extends Agent<Env> {
       .all().results;
 
     return { docs, summaries };
+  }
+
+  async getChunksByIds(
+    userId: string,
+    chunkIds: string[]
+  ): Promise<
+    Array<{
+      chunkId: string;
+      docId: string;
+      title: string;
+      sourceType: string | null;
+      sourceName: string | null;
+      chunkIndex: number;
+      content: string;
+      createdAt: string;
+    }>
+  > {
+    if (!chunkIds.length) return [];
+
+    const sql = this.doState.storage.sql;
+    const docColumns = sql
+      .prepare("PRAGMA table_info(docs)")
+      .all().results as Array<{ name: string }>;
+    const hasSourceType = docColumns.some((column) => column.name === "source_type");
+    const hasSourceName = docColumns.some((column) => column.name === "source_name");
+    const sourceTypeSelect = hasSourceType ? "d.source_type as source_type" : "NULL as source_type";
+    const sourceNameSelect = hasSourceName ? "d.source_name as source_name" : "NULL as source_name";
+    const placeholders = chunkIds.map(() => "?").join(", ");
+    const rows = sql
+      .prepare(
+        `SELECT c.id as chunk_id,
+          c.doc_id as doc_id,
+          d.title as title,
+          ${sourceTypeSelect},
+          ${sourceNameSelect},
+          c.chunk_index as chunk_index,
+          c.content as content,
+          c.created_at as created_at
+        FROM doc_chunks c
+        JOIN docs d ON d.id = c.doc_id AND d.user_id = c.user_id
+        WHERE c.user_id = ? AND c.id IN (${placeholders})`
+      )
+      .bind(userId, ...chunkIds)
+      .all().results as Array<{
+      chunk_id: string;
+      doc_id: string;
+      title: string;
+      source_type: string | null;
+      source_name: string | null;
+      chunk_index: number;
+      content: string;
+      created_at: string;
+    }>;
+
+    const byId = new Map(rows.map((row) => [row.chunk_id, row]));
+    const ordered: Array<{
+      chunkId: string;
+      docId: string;
+      title: string;
+      sourceType: string | null;
+      sourceName: string | null;
+      chunkIndex: number;
+      content: string;
+      createdAt: string;
+    }> = [];
+
+    for (const chunkId of chunkIds) {
+      const row = byId.get(chunkId);
+      if (!row) continue;
+      ordered.push({
+        chunkId: row.chunk_id,
+        docId: row.doc_id,
+        title: row.title,
+        sourceType: row.source_type,
+        sourceName: row.source_name,
+        chunkIndex: row.chunk_index,
+        content: row.content,
+        createdAt: row.created_at
+      });
+    }
+
+    return ordered;
   }
 
   async startResearchTask(userId: string, query: string): Promise<string> {
@@ -198,7 +288,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async updateTaskStatus(userId: string, taskId: string, status: string): Promise<void> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     sql
       .prepare("UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(status, taskId)
@@ -208,7 +298,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async createTask(userId: string, taskId: string, query: string): Promise<void> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     sql
       .prepare("INSERT INTO tasks (id, user_id, query, status) VALUES (?, ?, ?, ?)")
       .bind(taskId, userId, query, "queued")
@@ -218,7 +308,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   private async loadChunkLookup(
     userId: string
   ): Promise<Map<string, { text: string; source: string }>> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     const rows = sql
       .prepare("SELECT id, content, doc_id FROM doc_chunks WHERE user_id = ?")
       .bind(userId)
@@ -240,7 +330,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async loadConversation(userId: string, limit: number): Promise<ChatMessage[]> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     const rows = sql
       .prepare(
         "SELECT role, content FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
@@ -252,7 +342,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async storeMessage(userId: string, role: "user" | "assistant", content: string): Promise<void> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     sql
       .prepare("INSERT INTO messages (id, user_id, role, content) VALUES (?, ?, ?, ?)")
       .bind(crypto.randomUUID(), userId, role, content)
@@ -260,7 +350,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private ensureUser(userId: string): void {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     sql
       .prepare("INSERT OR IGNORE INTO conversations (user_id) VALUES (?)")
       .bind(userId)
@@ -268,7 +358,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async maybeSummarize(userId: string): Promise<void> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     const count = sql
       .prepare("SELECT COUNT(*) as total FROM messages WHERE user_id = ?")
       .bind(userId)
@@ -300,7 +390,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async storeSummary(userId: string, summary: string): Promise<void> {
-    const sql = this.state.storage.sql;
+    const sql = this.doState.storage.sql;
     sql
       .prepare("INSERT INTO summaries (id, user_id, content) VALUES (?, ?, ?)")
       .bind(crypto.randomUUID(), userId, summary)
@@ -323,7 +413,7 @@ export class EdgeResearchAgent extends Agent<Env> {
     const tokensMax = Number(this.env.RATE_LIMIT_TOKENS ?? "20");
     const refillPerSec = Number(this.env.RATE_LIMIT_REFILL_PER_SEC ?? "0.2");
     const key = `rate:${userId}`;
-    const existing = (await this.state.storage.get<RateLimitState>(key)) ?? {
+    const existing = (await this.doState.storage.get<RateLimitState>(key)) ?? {
       tokens: tokensMax,
       lastRefill: Date.now()
     };
@@ -336,7 +426,7 @@ export class EdgeResearchAgent extends Agent<Env> {
     }
 
     const updated: RateLimitState = { tokens: nextTokens - 1, lastRefill: now };
-    await this.state.storage.put(key, updated);
+    await this.doState.storage.put(key, updated);
   }
 
   private handleWebSocket(request: Request, url: URL): Response {
@@ -344,7 +434,7 @@ export class EdgeResearchAgent extends Agent<Env> {
     const client = pair[0];
     const server = pair[1];
 
-    this.state.acceptWebSocket(server);
+    this.doState.acceptWebSocket(server);
     const userId = url.searchParams.get("userId") ?? "";
     if (userId) this.bindSocket(userId, server);
 

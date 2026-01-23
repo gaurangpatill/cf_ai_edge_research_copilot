@@ -30,6 +30,49 @@ export default {
       return json({ ok: true });
     }
 
+    if (url.pathname === "/chunks" && request.method === "POST") {
+      let body: { userId?: unknown; chunkIds?: unknown };
+      try {
+        body = (await request.json()) as { userId?: unknown; chunkIds?: unknown };
+      } catch {
+        return json({ error: "invalid_json" }, 400);
+      }
+
+      const parsedUserId = typeof body.userId === "string" ? body.userId.trim() : "";
+      const rawChunkIds = Array.isArray(body.chunkIds) ? body.chunkIds : [];
+      const normalizedChunkIds: string[] = [];
+      let invalidChunkIds = !Array.isArray(body.chunkIds);
+
+      for (const item of rawChunkIds) {
+        if (typeof item !== "string") {
+          invalidChunkIds = true;
+          continue;
+        }
+        const trimmed = item.trim();
+        if (!trimmed) {
+          invalidChunkIds = true;
+          continue;
+        }
+        normalizedChunkIds.push(trimmed);
+      }
+
+      if (
+        !parsedUserId ||
+        invalidChunkIds ||
+        normalizedChunkIds.length < 1 ||
+        normalizedChunkIds.length > 50
+      ) {
+        return json({ error: "invalid_request" }, 400);
+      }
+
+      const res = await stubFor(env, parsedUserId).fetch("https://agent/getChunksByIds", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: parsedUserId, chunkIds: normalizedChunkIds })
+      });
+      return res;
+    }
+
     if (url.pathname === "/api/memories" && request.method === "GET") {
       const res = await stubFor(env, userId).fetch(
         `https://agent/listMemories?userId=${encodeURIComponent(userId)}`

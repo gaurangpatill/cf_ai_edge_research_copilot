@@ -49,13 +49,17 @@ export function initSchema(sql: SqlStorage): void {
   `);
 }
 
-export interface SqlStorage {
-  exec(query: string): void;
-  prepare(query: string): SqlStatement;
+declare global {
+  interface SqlStorage {
+    exec(query: string): void;
+    prepare(query: string): SqlStatement;
+  }
+
+  interface SqlStatement {
+    bind(...values: unknown[]): SqlStatement;
+    run(): void;
+    all<T = Record<string, unknown>>(): { results: T[] };
+  }
 }
 
-export interface SqlStatement {
-  bind(...values: unknown[]): SqlStatement;
-  run(): void;
-  all<T = Record<string, unknown>>(): { results: T[] };
-}
+export {};
