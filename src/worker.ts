@@ -1,7 +1,8 @@
 import type { Env } from "./lib/env";
 import { EdgeResearchAgent } from "./agent";
+import { ResearchWorkflow } from "./workflows/research";
 
-export { EdgeResearchAgent };
+export { EdgeResearchAgent, ResearchWorkflow };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

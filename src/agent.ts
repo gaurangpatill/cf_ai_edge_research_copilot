@@ -1,5 +1,5 @@
 import { Agent } from "@cloudflare/agents";
-import { initSchema } from "./lib/db";
+import { initSchema, wrapSql, type DbSql } from "./lib/db";
 import { assembleMessages, buildContextBlock, type ChatMessage } from "./lib/prompts";
 import { chunkText } from "./lib/chunking";
 import { embedText, runChat } from "./lib/ai";
@@ -23,13 +23,15 @@ interface SocketEnvelope {
 
 export class EdgeResearchAgent extends Agent<Env> {
   private readonly doState: DurableObjectState;
+  private readonly doSql: DbSql;
   private sessions = new Map<string, Set<WebSocket>>();
   private socketUsers = new Map<WebSocket, string>();
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
     this.doState = state;
-    initSchema(state.storage.sql);
+    this.doSql = wrapSql(state.storage.sql);
+    initSchema(this.doSql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -126,7 +128,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   async addDocument(userId: string, title: string, content: string): Promise<void> {
     this.ensureUser(userId);
     const docId = crypto.randomUUID();
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
 
     sql
       .prepare("INSERT INTO docs (id, user_id, title, content) VALUES (?, ?, ?, ?)")
@@ -162,7 +164,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async listMemories(userId: string): Promise<{ docs: unknown[]; summaries: unknown[] }> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     const docs = sql
       .prepare("SELECT id, title, created_at FROM docs WHERE user_id = ? ORDER BY created_at DESC")
       .bind(userId)
@@ -193,7 +195,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   > {
     if (!chunkIds.length) return [];
 
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     const docColumns = sql
       .prepare("PRAGMA table_info(docs)")
       .all().results as Array<{ name: string }>;
@@ -288,7 +290,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async updateTaskStatus(userId: string, taskId: string, status: string): Promise<void> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     sql
       .prepare("UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(status, taskId)
@@ -298,7 +300,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   async createTask(userId: string, taskId: string, query: string): Promise<void> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     sql
       .prepare("INSERT INTO tasks (id, user_id, query, status) VALUES (?, ?, ?, ?)")
       .bind(taskId, userId, query, "queued")
@@ -308,7 +310,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   private async loadChunkLookup(
     userId: string
   ): Promise<Map<string, { text: string; source: string }>> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     const rows = sql
       .prepare("SELECT id, content, doc_id FROM doc_chunks WHERE user_id = ?")
       .bind(userId)
@@ -330,7 +332,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async loadConversation(userId: string, limit: number): Promise<ChatMessage[]> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     const rows = sql
       .prepare(
         "SELECT role, content FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
@@ -342,7 +344,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async storeMessage(userId: string, role: "user" | "assistant", content: string): Promise<void> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     sql
       .prepare("INSERT INTO messages (id, user_id, role, content) VALUES (?, ?, ?, ?)")
       .bind(crypto.randomUUID(), userId, role, content)
@@ -350,7 +352,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private ensureUser(userId: string): void {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     sql
       .prepare("INSERT OR IGNORE INTO conversations (user_id) VALUES (?)")
       .bind(userId)
@@ -358,7 +360,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async maybeSummarize(userId: string): Promise<void> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     const count = sql
       .prepare("SELECT COUNT(*) as total FROM messages WHERE user_id = ?")
       .bind(userId)
@@ -390,7 +392,7 @@ export class EdgeResearchAgent extends Agent<Env> {
   }
 
   private async storeSummary(userId: string, summary: string): Promise<void> {
-    const sql = this.doState.storage.sql;
+    const sql = this.doSql;
     sql
       .prepare("INSERT INTO summaries (id, user_id, content) VALUES (?, ?, ?)")
       .bind(crypto.randomUUID(), userId, summary)

@@ -6,7 +6,11 @@ export async function upsertVectors(
   vectors: { id: string; values: number[]; metadata: Record<string, string> }[]
 ): Promise<void> {
   if (!vectors.length) return;
-  await env.VECTORIZE_INDEX.upsert(vectors);
+  try {
+    await env.VECTORIZE_INDEX.upsert(vectors);
+  } catch {
+    return;
+  }
 }
 
 export async function queryVectors(
@@ -15,12 +19,16 @@ export async function queryVectors(
   filter: Record<string, string>,
   topK: number
 ): Promise<VectorizeQueryResult> {
-  return env.VECTORIZE_INDEX.query({
-    vector: embedding,
-    topK,
-    filter,
-    includeMetadata: true
-  });
+  try {
+    return await env.VECTORIZE_INDEX.query({
+      vector: embedding,
+      topK,
+      filter,
+      includeMetadata: true
+    });
+  } catch {
+    return { matches: [] };
+  }
 }
 
 export function mapVectorResults(

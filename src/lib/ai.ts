@@ -17,12 +17,16 @@ export async function runChat(
     return callAIGateway(env, { model: LLM_MODEL, messages, ...opts });
   }
 
-  return env.AI.run(LLM_MODEL, {
-    messages,
-    stream: opts.stream ?? false,
-    max_tokens: opts.maxTokens ?? 800,
-    temperature: opts.temperature ?? 0.3
-  });
+  try {
+    return await env.AI.run(LLM_MODEL, {
+      messages,
+      stream: opts.stream ?? false,
+      max_tokens: opts.maxTokens ?? 800,
+      temperature: opts.temperature ?? 0.3
+    });
+  } catch {
+    return { response: "(AI unavailable in local dev)" };
+  }
 }
 
 export async function embedText(env: Env, inputs: string[]): Promise<number[][]> {
@@ -31,8 +35,12 @@ export async function embedText(env: Env, inputs: string[]): Promise<number[][]>
     return result?.data?.map((item: { embedding: number[] }) => item.embedding) ?? [];
   }
 
-  const result = await env.AI.run(EMBED_MODEL, { input: inputs });
-  return result?.data?.map((item: { embedding: number[] }) => item.embedding) ?? [];
+  try {
+    const result = await env.AI.run(EMBED_MODEL, { input: inputs });
+    return result?.data?.map((item: { embedding: number[] }) => item.embedding) ?? [];
+  } catch {
+    return inputs.map(() => []);
+  }
 }
 
 async function callAIGateway(env: Env, payload: Record<string, unknown>): Promise<any> {

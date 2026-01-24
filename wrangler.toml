@@ -4,21 +4,24 @@ compatibility_date = "2025-01-15"
 
 [ai]
 binding = "AI"
+remote = true
 
 [[vectorize]]
 binding = "VECTORIZE_INDEX"
 index_name = "edge-research-copilot"
+remote = true
 
 [[durable_objects.bindings]]
 name = "AGENT"
 class_name = "EdgeResearchAgent"
 
 [[migrations]]
-tag = "v1"
-new_classes = ["EdgeResearchAgent"]
+tag = "v2"
+new_sqlite_classes = ["EdgeResearchAgent"]
 
 [[workflows]]
-name = "RESEARCH_WORKFLOW"
+name = "research-workflow"
+binding = "RESEARCH_WORKFLOW"
 class_name = "ResearchWorkflow"
 
 [vars]

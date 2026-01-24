@@ -1,4 +1,4 @@
-export function initSchema(sql: SqlStorage): void {
+export function initSchema(sql: DbSql): void {
   sql.exec(`
     CREATE TABLE IF NOT EXISTS conversations (
       user_id TEXT PRIMARY KEY,
@@ -49,17 +49,40 @@ export function initSchema(sql: SqlStorage): void {
   `);
 }
 
-declare global {
-  interface SqlStorage {
-    exec(query: string): void;
-    prepare(query: string): SqlStatement;
-  }
-
-  interface SqlStatement {
-    bind(...values: unknown[]): SqlStatement;
-    run(): void;
-    all<T = Record<string, unknown>>(): { results: T[] };
-  }
+export interface DbSql {
+  exec(query: string): void;
+  prepare(query: string): DbStatement;
 }
 
-export {};
+export interface DbStatement {
+  bind(...values: unknown[]): DbStatement;
+  run(): void;
+  all<T = Record<string, unknown>>(): { results: T[] };
+}
+
+export type DurableObjectSqlStorage = SqlStorage;
+
+export function wrapSql(raw: DurableObjectSqlStorage): DbSql {
+  return {
+    exec(query: string): void {
+      raw.exec(query);
+    },
+    prepare(query: string): DbStatement {
+      let params: unknown[] = [];
+      const statement: DbStatement = {
+        bind(...values: unknown[]): DbStatement {
+          params = values;
+          return statement;
+        },
+        run(): void {
+          raw.exec(query, ...params);
+        },
+        all<T = Record<string, unknown>>(): { results: T[] } {
+          const result = raw.exec(query, ...params) as { results?: T[] } | undefined | null;
+          return { results: Array.isArray(result?.results) ? result.results : [] };
+        }
+      };
+      return statement;
+    }
+  };
+}
