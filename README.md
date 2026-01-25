@@ -146,6 +146,7 @@ All tables are auto-initialized inside the Durable Object.
 {
   "text": "List 3 Cloudflare products from my stored context."
 }
+```
 
 ### Output
 ```json
@@ -153,6 +154,7 @@ All tables are auto-initialized inside the Durable Object.
   "answer": "Cloudflare offers Workers, R2, and D1.",
   "usedDocs": ["cf-products"]
 }
+```
 
 ## Tech Stack
 
@@ -199,32 +201,31 @@ https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev
 
 ### Quick Verification
 Run:
-```json
-    { 
-        "curl https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev/api/health",
-        "Expected response includes:"
-        "ok: true"
-        "hasAI: true"
-        "hasVectorize: true"
-    }
+```bash
+curl https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev/api/health
+```
+
+Expected response includes:
+- `ok: true`
+- `hasAI: true`
+- `hasVectorize: true`
 
 ### Example Usage
 Set base URL:
-```json
-    {
-        "BASE=https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev"
-    }
+```bash
+export BASE="https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev"
+```
+
 Upload a document:
-```json
-    {
-        "curl -X POST $BASE/api/doc?userId=test"
-        "-H content-type: application/json"
-        "-d '{title:example,content:Cloudflare offers Workers, R2, and D1.}'"
-    }
+```bash
+curl -X POST "$BASE/api/doc?userId=test" \
+  -H "content-type: application/json" \
+  -d '{"title":"example","content":"Cloudflare offers Workers, R2, and D1."}'
+```
+
 Ask a question grounded in stored context:
-```json
-    {
-        "curl -X POST $BASE/api/message?userId=test"
-        "-H content-type: application/json"
-        "-d '{text:List Cloudflare products from my stored context.}'"
-    }
+```bash
+curl -X POST "$BASE/api/message?userId=test" \
+  -H "content-type: application/json" \
+  -d '{"text":"List Cloudflare products from my stored context."}'
+```
