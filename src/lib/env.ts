@@ -5,6 +5,7 @@ export interface Env {
   RESEARCH_WORKFLOW: WorkflowBinding;
   AI_GATEWAY_ENDPOINT?: string;
   AI_GATEWAY_TOKEN?: string;
+  DEBUG?: string;
   MAX_MESSAGE_CHARS?: string;
   MAX_DOC_CHARS?: string;
   RATE_LIMIT_TOKENS?: string;
@@ -13,13 +14,13 @@ export interface Env {
 
 export interface VectorizeIndex {
   upsert(vectors: Array<VectorizeVector>): Promise<void>;
-  query(query: VectorizeQuery): Promise<VectorizeQueryResult>;
+  query(vector: number[], options: VectorizeQueryOptions): Promise<VectorizeQueryResult>;
 }
 
 export interface VectorizeVector {
   id: string;
   values: number[];
-  metadata?: Record<string, string>;
+  metadata?: Record<string, string | number>;
 }
 
 export interface VectorizeQuery {
@@ -27,6 +28,12 @@ export interface VectorizeQuery {
   topK: number;
   filter?: Record<string, string>;
   includeMetadata?: boolean;
+}
+
+export interface VectorizeQueryOptions {
+  topK: number;
+  filter?: Record<string, string | { $eq: string }>;
+  returnMetadata?: "none" | "all";
 }
 
 export interface VectorizeQueryResult {

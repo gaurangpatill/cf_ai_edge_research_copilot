@@ -5,6 +5,8 @@
 
 
 # Description
+Vectorize metadata filtering requires a metadata index on `userId` (string):
+`npx wrangler vectorize create-metadata-index edge-research-copilot --property-name=userId --type=string`
 
 # Example
 
@@ -15,4 +17,3 @@
 `npm test`
 
 #License:
-

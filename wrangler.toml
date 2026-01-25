@@ -1,4 +1,4 @@
-name = "cf_ai_edge-research-copilot"
+name = "cf-ai-edge-research-copilot-v2"
 main = "src/worker.ts"
 compatibility_date = "2025-01-15"
 
@@ -13,14 +13,15 @@ remote = true
 
 [[durable_objects.bindings]]
 name = "AGENT"
-class_name = "EdgeResearchAgent"
+class_name = "EdgeResearchAgentSqlSQLite"
 
 [[migrations]]
-tag = "v2"
-new_sqlite_classes = ["EdgeResearchAgent"]
+tag = "v101"
+new_sqlite_classes = ["EdgeResearchAgentSqlSQLite"]
+
 
 [[workflows]]
-name = "research-workflow"
+name = "research-workflow-v2"
 binding = "RESEARCH_WORKFLOW"
 class_name = "ResearchWorkflow"
 

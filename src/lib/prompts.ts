@@ -23,8 +23,8 @@ export function buildSystemPrompt(): string {
 }
 
 export function buildContextBlock(chunks: RetrievedChunk[], topK = DEFAULT_TOP_K): string {
-  if (!chunks.length) return "No context provided.";
-  const selected = chunks.slice(0, topK);
+  const selected = chunks.filter((chunk) => chunk.text && chunk.text.trim()).slice(0, topK);
+  if (!selected.length) return "No context provided.";
   return selected
     .map(
       (chunk) =>

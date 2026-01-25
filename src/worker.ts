@@ -1,8 +1,23 @@
 import type { Env } from "./lib/env";
-import { EdgeResearchAgent } from "./agent";
+import { EdgeResearchAgentSqlSQLite as BaseSqlSQLite } from "./agent";
 import { ResearchWorkflow } from "./workflows/research";
 
-export { EdgeResearchAgent, ResearchWorkflow };
+const BUILD_ID = "v2-clean-002";
+
+export class EdgeResearchAgentSqlSQLite extends BaseSqlSQLite {
+  constructor(state: DurableObjectState, env: Env) {
+    const sql = state.storage.sql;
+    if (!sql) {
+      throw new Error("FATAL_SQLITE_NOT_ENABLED");
+    }
+    super(state, env);
+  }
+}
+
+export class EdgeResearchAgentSqlFresh extends EdgeResearchAgentSqlSQLite {}
+export class EdgeResearchAgentSqlSQLite1 extends EdgeResearchAgentSqlSQLite {}
+
+export { ResearchWorkflow };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -15,20 +30,101 @@ export default {
       return stub.fetch(request);
     }
 
+    if (url.pathname === "/api/health" && request.method === "GET") {
+      return json({
+        ok: true,
+        version: "edge-research-copilot-v2",
+        buildId: BUILD_ID,
+        hasAI: Boolean(env.AI),
+        hasVectorize: Boolean(env.VECTORIZE_INDEX)
+      });
+    }
+
     if (url.pathname === "/api/message" && request.method === "POST") {
-      const body = (await request.json()) as { text: string };
-      await callAgent(stubFor(env, userId), "/sendMessage", { userId, text: body.text });
-      return json({ ok: true });
+      try {
+        const body = (await request.json()) as { text: string };
+        const res = await stubFor(env, userId).fetch("https://agent/sendMessage", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId, text: body.text })
+        });
+        return res;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
     }
 
     if (url.pathname === "/api/doc" && request.method === "POST") {
-      const body = (await request.json()) as { title: string; content: string };
-      await callAgent(stubFor(env, userId), "/addDocument", {
+      try {
+        const body = (await request.json()) as { title: string; content: string };
+        const res = await stubFor(env, userId).fetch("https://agent/addDocument", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            title: body.title,
+            content: body.content
+          })
+        });
+        return res;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
+    }
+    if (url.pathname === "/api/debug/docs" && request.method === "GET") {
+      try {
+        const res = await stubFor(env, userId).fetch(
+          `https://agent/debug/docs?userId=${encodeURIComponent(userId)}`
+        );
+        return res;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
+    }
+    if (url.pathname === "/api/debug/vectorize" && request.method === "GET") {
+      return json({
+        ok: true,
         userId,
-        title: body.title,
-        content: body.content
+        vectorizeBound: Boolean(env.VECTORIZE_INDEX),
+        aiBound: Boolean(env.AI)
       });
-      return json({ ok: true });
+    }
+    if (url.pathname === "/api/debug/sql" && request.method === "GET") {
+      try {
+        const id = env.AGENT.idFromName(userId);
+        const stub = env.AGENT.get(id);
+        return await stub.fetch("https://do/debug/sql");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
+    }
+    if (url.pathname === "/api/debug/vectorQuery" && request.method === "POST") {
+      try {
+        const res = await stubFor(env, userId).fetch("https://agent/debug/vectorQuery", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId, text: (await request.json() as { text: string }).text })
+        });
+        return res;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
+    }
+    if (url.pathname === "/api/debug/sql" && request.method === "GET") {
+      try {
+        const id = env.AGENT.idFromName(userId);
+        const stub = env.AGENT.get(id);
+        const res = await stub.fetch("https://do/debug/sql");
+        return res;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown_error";
+        return json({ ok: false, error: message }, 500);
+      }
     }
 
     if (url.pathname === "/chunks" && request.method === "POST") {
