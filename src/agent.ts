@@ -289,7 +289,8 @@ export class EdgeResearchAgentSqlSQLite extends DurableObject<Env> {
       try {
         const body = (await request.json()) as { userId: string; text: string; noFilter?: boolean };
         const embedding = await embedText(this.env, [body.text]);
-        const filter = body.noFilter ? {} : { userId: body.userId };
+        const filter: Record<string, string> = {};
+        if (!body.noFilter) filter.userId = body.userId;
         const vectorResult = await queryVectors(this.env, embedding[0] ?? [], filter, DEFAULT_TOP_K, {
           throwOnError: true
         });
