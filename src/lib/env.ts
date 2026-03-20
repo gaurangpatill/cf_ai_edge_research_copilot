@@ -2,9 +2,11 @@ export interface Env {
   AI: any;
   VECTORIZE_INDEX: VectorizeIndex;
   AGENT: DurableObjectNamespace;
+  AUTH: DurableObjectNamespace;
   RESEARCH_WORKFLOW: WorkflowBinding;
   AI_GATEWAY_ENDPOINT?: string;
   AI_GATEWAY_TOKEN?: string;
+  AUTH_SECRET?: string;
   DEBUG?: string;
   MAX_MESSAGE_CHARS?: string;
   MAX_DOC_CHARS?: string;

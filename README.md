@@ -1,231 +1,121 @@
 # Cloudflare Edge Research Copilot
 
-An AI-powered research assistant built entirely on Cloudflare’s edge platform.  
-The system combines LLM inference, durable memory, vector search, and workflow orchestration to deliver fast, contextual answers grounded in user-provided documents.
+An edge-native research assistant built on Cloudflare Workers, Workers AI, Vectorize, Durable Objects, and SQLite-backed persistent state.
 
-This project was built as part of **Cloudflare’s AI App optional assignment** and demonstrates a full **retrieval-augmented generation (RAG)** system running on **Workers, Durable Objects (SQLite), Vectorize, and Workflows**.
+The repository now has two layers:
 
----
-
-## Features
-
-- Chat-based AI assistant powered by **Workers AI (Llama 3.3)**
-- Persistent memory and state using **Durable Objects with SQLite**
-- Semantic document retrieval using **Vectorize embeddings**
-- Per-user isolation via Durable Object instances
-- Workflow orchestration for longer-running research tasks
-- Fully edge-native (no external servers, databases, or queues)
-
----
-
-## Architecture Overview
-
-### Core Components
-
-#### Workers AI
-- **LLM**: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
-- **Embeddings**: `@cf/baai/bge-base-en-v1.5`
-
-Used for:
-- Chat completion
-- Embedding user queries
-- Embedding document chunks during ingestion
-
----
-
-#### Durable Objects (SQLite-backed)
-- One agent instance per `userId`
-- Persistent SQLite database inside each Durable Object
-
-Stores:
-- Conversations
-- Messages
-- Documents
-- Document chunks
-- Summaries
-- Research tasks
-
-State persists across restarts and deployments.
-
----
-
-#### Vectorize
-- Stores embeddings for document chunks
-- Metadata-filtered by `userId`
-- Used to retrieve semantically relevant context for each query
-
----
-
-#### Workflows
-- Coordinates longer-running or multi-step research tasks
-- Decouples orchestration logic from synchronous chat requests
-
----
-
-#### Workers (HTTP Layer)
-- Routes incoming requests
-- Resolves the correct Durable Object instance per user
-- Acts as the public API surface
-
----
-
-## How It Works
-
-### Document Ingestion Flow
-1. User uploads a document
-2. Document is chunked
-3. Chunks are stored in SQLite
-4. Embeddings are generated using Workers AI
-5. Embeddings are upserted into Vectorize with `userId` metadata
-
----
-
-### Chat Query Flow
-1. User sends a message
-2. Message is embedded
-3. Vectorize retrieves relevant chunks (filtered by `userId`)
-4. Chunk content is hydrated from SQLite
-5. Context is injected into the LLM prompt
-6. LLM generates a grounded response
-7. Used documents are returned for traceability
-
----
-
-### Memory & Persistence
-- Conversations and summaries are stored automatically
-- Each user’s data is fully isolated
-- Memory survives worker restarts and deployments
-
----
-
-## API Endpoints
-
-### Health & Debug
-
-**GET `/api/health`**  
-Health check for bindings and platform features.
-
-**GET `/api/debug/sql?userId=...`**  
-Inspect SQLite state for a user.
-
-**POST `/api/debug/vectorQuery?userId=...`**  
-Run a raw Vectorize query for debugging.
-
----
-
-### Core Functionality
-
-**POST `/api/doc?userId=...`**  
-Upload and index a document.
-
-**POST `/api/message?userId=...`**  
-Send a chat message grounded in stored context.
-
-**GET `/api/memories?userId=...`**  
-List stored documents and summaries for a user.
-
----
-
-## Data Model (SQLite)
-
-All tables are auto-initialized inside the Durable Object.
-
-- `docs` – stored documents  
-- `doc_chunks` – chunked document content  
-- `messages` – chat history  
-- `conversations` – per-user state  
-- `tasks` – research workflows  
-- `summaries` – conversation summaries  
-
----
-
-## Example
-
-### Input
-```json
-{
-  "text": "List 3 Cloudflare products from my stored context."
-}
+```text
+.
+├── src/                     # Cloudflare Worker, Durable Object, retrieval and AI logic
+├── scripts/                 # smoke tests and local helpers
+├── web/                     # Next.js App Router frontend
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   └── .env.example
+├── package.json             # Worker scripts + web passthrough scripts
+└── wrangler.toml
 ```
 
-### Output
-```json
-{
-  "answer": "Cloudflare offers Workers, R2, and D1.",
-  "usedDocs": ["cf-products"]
-}
-```
+## Product framing
 
-## Tech Stack
+The web app presents the system as a research workspace:
 
-- Cloudflare Workers  
-- Workers AI  
-- Durable Objects (SQLite)  
-- Vectorize  
-- Workflows  
-- TypeScript  
+- create research sessions
+- ingest source material
+- ask grounded questions
+- inspect citations and retrieved chunks
+- continue persistent threads backed by Cloudflare Durable Objects
 
----
+## Existing Cloudflare backend
 
-## Assignment Requirements Mapping
+The core intelligence still lives in Cloudflare:
 
-| Requirement | Implementation |
-|-----------|----------------|
-| LLM | Workers AI (Llama 3.3) |
-| Workflow / Coordination | Workflows + Durable Objects |
-| User Input | Chat API (UI planned via Pages) |
-| Memory / State | Durable Objects + SQLite |
-| Edge-native | Yes (no external services) |
+- Workers AI for chat and embeddings
+- Vectorize for semantic retrieval
+- Durable Objects with SQLite for persistence
+- Workflows for longer-running research tasks
 
----
+The Next.js frontend is intentionally thin and calls Worker endpoints rather than reimplementing RAG logic.
 
-## 🧭 UI Status
+## Worker endpoints available today
 
-A UI has not yet been implemented.
+- `GET /api/health`
+- `POST /api/sessions`
+- `GET /api/sessions`
+- `GET /api/sessions/:id`
+- `PATCH /api/sessions/:id`
+- `DELETE /api/sessions/:id`
+- `GET /api/sessions/:id/messages`
+- `POST /api/doc`
+- `POST /api/message`
+- `GET /api/sources?sessionId=...`
+- `GET /api/memories?sessionId=...`
+- `POST /api/debug/vectorQuery`
+- `POST /chunks`
 
-The system is fully functional via HTTP APIs and is designed to be paired with a Cloudflare Pages frontend for chat-based interaction.
+## Web MVP setup
 
----
+1. Install Worker dependencies at the repo root:
 
-## Deployment
-
-This project is deployed on Cloudflare Workers.
-
-**Important**: This is an API-first application.  
-There is currently **no web UI** at the root route (`/`).
-
-Please interact with the application using the API endpoints (for example via `curl`, Postman, or any HTTP client).
-
-### Base URL
-https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev
-
-### Quick Verification
-Run:
 ```bash
-curl https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev/api/health
+npm install
 ```
 
-Expected response includes:
-- `ok: true`
-- `hasAI: true`
-- `hasVectorize: true`
+2. Install frontend dependencies:
 
-### Example Usage
-Set base URL:
 ```bash
-export BASE="https://cf-ai-edge-research-copilot-v2.gaurangrpatil.workers.dev"
+cd web
+npm install
+cp .env.example .env.local
 ```
 
-Upload a document:
+3. Set a local or deployed Worker auth secret.
+
+For deployed environments:
+
 ```bash
-curl -X POST "$BASE/api/doc?userId=test" \
-  -H "content-type: application/json" \
-  -d '{"title":"example","content":"Cloudflare offers Workers, R2, and D1."}'
+npx wrangler secret put AUTH_SECRET
 ```
 
-Ask a question grounded in stored context:
-```bash
-curl -X POST "$BASE/api/message?userId=test" \
-  -H "content-type: application/json" \
-  -d '{"text":"List Cloudflare products from my stored context."}'
+For local Worker development, create a root `.dev.vars` file:
+
+```env
+AUTH_SECRET=your-random-local-secret
 ```
+
+4. Set your Worker URL in `web/.env.local`:
+
+```bash
+NEXT_PUBLIC_WORKER_BASE_URL=http://127.0.0.1:8787
+NEXT_PUBLIC_ENABLE_MOCK_FALLBACK=false
+```
+
+5. Run the Worker and the web app in separate terminals:
+
+```bash
+npm run dev:worker
+```
+
+This runs Wrangler in `--remote` mode on port `8787` so Workers AI and Vectorize are available during local web development. It also uses a versioned local persistence directory for Durable Object state to avoid reusing old non-SQLite dev state.
+
+```bash
+npm run dev:web
+```
+
+6. Open `http://localhost:3000`.
+
+If you want to point the UI at a deployed Worker instead, replace `NEXT_PUBLIC_WORKER_BASE_URL` with your deployed `workers.dev` URL.
+
+## Backend integration details
+
+The frontend now uses a stable browser-level `userId` sent in the `x-user-id` header. Each user is still mapped to a single Durable Object, but that Durable Object now stores many sessions internally:
+
+- `sessions` table for research threads
+- `messages.session_id` for per-session chat history
+- `docs.session_id` for per-session source association
+- Vectorize metadata includes both `userId` and `sessionId`
+
+`POST /api/message` now returns grounded answer text plus citations and retrieved chunks, so the UI can render attribution without depending on debug-only hydration for the main path.
+
+The mock/local fallback still exists in [`web/lib/worker-client.ts`](/Users/gaurangpatil/Desktop/cloudflare_ai_app_assignment/web/lib/worker-client.ts) so the frontend remains usable if the Worker URL is not configured.

@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:worker": "wrangler dev src/worker.ts",
+    "dev:worker": "wrangler dev src/worker.ts --remote --port 8787 --persist-to /tmp/cf-ai-edge-research-copilot-sqlite-v104",
     "dev:pages": "wrangler pages dev pages",
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "start:web": "npm --prefix web run start",
     "deploy:worker": "wrangler deploy src/worker.ts",
     "deploy:pages": "wrangler pages deploy pages",
     "test": "vitest run",
@@ -16,6 +19,7 @@
   },
   "devDependencies": {
     "typescript": "^5.5.4",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "wrangler": "^4.74.0"
   }
 }

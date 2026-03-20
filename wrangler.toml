@@ -13,11 +13,15 @@ remote = true
 
 [[durable_objects.bindings]]
 name = "AGENT"
-class_name = "EdgeResearchAgentSqlSQLite"
+class_name = "EdgeResearchAgentSessionSqlV2"
+
+[[durable_objects.bindings]]
+name = "AUTH"
+class_name = "AuthGatewaySqlV2"
 
 [[migrations]]
-tag = "v101"
-new_sqlite_classes = ["EdgeResearchAgentSqlSQLite"]
+tag = "v104"
+new_sqlite_classes = ["AuthGatewaySqlV2"]
 
 
 [[workflows]]

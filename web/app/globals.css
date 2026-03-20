@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-sans: "Avenir Next", "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", "Menlo", "Monaco", monospace;
+  --background: 244 240 231;
+  --foreground: 15 23 42;
+  --muted: 113 128 150;
+  --panel: 255 252 246;
+  --border: 216 206 192;
+  --accent: 91 107 95;
+  --accent-soft: 223 233 224;
+  --warm: 201 108 74;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  color: rgb(var(--foreground));
+  background:
+    radial-gradient(circle at top left, rgba(201, 108, 74, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(91, 107, 95, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255, 252, 246, 1) 0%, rgba(244, 240, 231, 1) 100%);
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+.panel {
+  @apply rounded-panel border border-black/5 bg-[rgb(var(--panel))] shadow-panel backdrop-blur;
+}
+
+.markdown {
+  @apply space-y-4 text-sm leading-7 text-slate-700;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  @apply font-semibold text-slate-900;
+}
+
+.markdown ul {
+  @apply list-disc pl-5;
+}
+
+.markdown ol {
+  @apply list-decimal pl-5;
+}
+
+.markdown code {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em];
+}
+
+.markdown pre {
+  @apply overflow-x-auto rounded-2xl bg-slate-950 p-4 text-slate-100;
+}
+
+.markdown pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
